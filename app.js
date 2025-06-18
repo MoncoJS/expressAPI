@@ -11,6 +11,7 @@ var productsRouter = require("./routes/products");
 var app = express();
 
 var cors = require("cors");
+const verifyToken = require("./middleware/jwt_decode");
 const mongoose = require("mongoose");
 const { DB_HOST, DB_PORT, DB_NAME } = process.env;
 mongoose
@@ -37,7 +38,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
-app.use("/users", usersRouter);
+app.use("/users", verifyToken, usersRouter);
 app.use("/products", productsRouter);
 
 // catch 404 and forward to error handler
