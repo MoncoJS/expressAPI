@@ -1,4 +1,5 @@
 var express = require("express");
+const mongoose = require("mongoose");
 const productModel = require("../models/product");
 var router = express.Router();
 
@@ -19,6 +20,32 @@ router.get("/", async function (req, res) {
     });
   }
 });
+
+router.get("/:id", async function (req, res) {
+  try {
+    let id = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid product ID",
+        success: false,
+        error: "Invalid ID format",
+      });
+    }
+    let product = await productModel.findById(id);
+    return res.status(200).send({
+      data: product,
+      message: "Product retrieved successfully",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Error retrieving product",
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 router.post("/", async function (req, res) {
   try {
     const { product_name, price, amount } = req.body;
