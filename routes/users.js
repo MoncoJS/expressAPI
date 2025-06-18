@@ -5,8 +5,20 @@ const Users = require("../models/์user.js");
 var router = express.Router();
 
 /* GET users listing. */
-router.get("/", function (req, res, next) {
-  res.send("method get");
+router.get("/", async function (req, res, next) {
+  try {
+    const users = await Users.find();
+    return res.status(200).send({
+      data: users,
+      message: "success",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "fail",
+      success: false,
+    });
+  }
 });
 
 router.post("/", async function (req, res) {
