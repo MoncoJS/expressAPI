@@ -67,11 +67,38 @@ router.post("/", async function (req, res) {
     });
   }
 });
-router.put("/", function (req, res) {
-  res.send("method put");
+router.put("/:id", async function (req, res) {
+  //   res.send("method put");
+  try {
+    const { id, product_name, price, amount } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid product ID",
+        success: false,
+        error: "Invalid ID format",
+      });
+    }
+    await productModel.updateOne(
+      { _id: mongoose.Types.ObjectId(id) },
+      { set: req.body }
+    );
+    let product = await productModel.findById(id);
+    return res.status(201).send({
+      data: product,
+      message: "Product updated successfully",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Error updating product",
+      success: false,
+      error: error.message,
+    });
+  }
 });
-router.delete("/", function (req, res) {
-  res.send("method delete");
+
+router.delete("/:id", function (req, res) {
+//   res.send("method delete");
 });
 
 module.exports = router;
