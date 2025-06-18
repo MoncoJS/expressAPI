@@ -97,8 +97,31 @@ router.put("/:id", async function (req, res) {
   }
 });
 
-router.delete("/:id", function (req, res) {
+router.delete("/:id", async function (req, res) {
 //   res.send("method delete");
+    try {
+        let id = req.params.id;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).send({
+                message: "Invalid product ID",
+                success: false,
+                error: "Invalid ID format",
+            });
+        }
+        await productModel.deleteOne({ _id: new mongoose.Types.ObjectId(id) });
+        let products = await productModel.find();
+        return res.status(200).send({
+            data: products,
+            message: "Product deleted successfully",
+            success: true,
+        });
+    } catch (error) {
+        return res.status(500).send({
+            message: "Error deleting product",
+            success: false,
+            error: error.message,
+        });
+    }
 });
 
 module.exports = router;
