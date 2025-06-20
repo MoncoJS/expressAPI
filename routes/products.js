@@ -57,8 +57,8 @@ router.post("/", upload.single("image"), async function (req, res) {
     const { product_name, price, amount, description } = req.body;
     let newProduct = new productModel({
       product_name: product_name,
-      price: price,
-      amount: amount,
+      price: parseFloat(price),
+      amount: parseInt(amount),
       img: nameImage,
       description: description,
     });
@@ -76,9 +76,8 @@ router.post("/", upload.single("image"), async function (req, res) {
   }
 });
 router.put("/:id", async function (req, res) {
-  //   res.send("method put");
   try {
-    const { id, product_name, price, amount, description } = req.body;
+    const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).send({
         message: "Invalid product ID",
@@ -86,12 +85,18 @@ router.put("/:id", async function (req, res) {
         error: "Invalid ID format",
       });
     }
+    // แปลง price, amount เป็นตัวเลขถ้ามี
+    const updateData = { ...req.body };
+    if (updateData.price !== undefined)
+      updateData.price = parseFloat(updateData.price);
+    if (updateData.amount !== undefined)
+      updateData.amount = parseInt(updateData.amount);
     await productModel.updateOne(
       { _id: mongoose.Types.ObjectId(id) },
-      { set: req.body }
+      { $set: updateData }
     );
     let product = await productModel.findById(id);
-    return res.status(201).send({
+    return res.status(200).send({
       data: product,
       message: "Product updated successfully",
       success: true,
