@@ -7,7 +7,7 @@ const users = new mongoose.Schema({
   password: {
     type: String,
   },
-  fistName: {
+  firstName: {
     type: String,
   },
   lastName: {
@@ -16,5 +16,8 @@ const users = new mongoose.Schema({
   email: {
     type: String,
   },
+  gender: {
+    type: String,
+  }
 });
 module.exports = mongoose.model("users", users);

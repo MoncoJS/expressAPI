@@ -23,7 +23,7 @@ router.get("/", async function (req, res, next) {
 
 router.post("/", async function (req, res) {
   try {
-    let { password, username, firstName, lastName, email } = req.body;
+    let { password, username, firstName, lastName, email, gender } = req.body;
     let hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new Users({
       username,
@@ -31,10 +31,11 @@ router.post("/", async function (req, res) {
       firstName,
       lastName,
       email,
+      gender,
     });
     const user = await newUser.save();
     return res.status(200).send({
-      data: { _id: user._id, username, firstName, lastName, email },
+      data: { _id: user._id, username, firstName, lastName, email, gender },
       message: "create success",
       success: true,
     });
@@ -46,12 +47,51 @@ router.post("/", async function (req, res) {
   }
 });
 
-router.put("/", function (req, res, next) {
-  res.send("method put");
+router.put("/:id", async function (req, res) {
+  try {
+    const id = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid user ID",
+        success: false,
+      });
+    }
+    const updatedUser = await Users.findByIdAndUpdate(id, req.body, {
+      new: true,
+    });
+    return res.status(200).send({
+      data: updatedUser,
+      message: "update success",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "update fail",
+      success: false,
+    });
+  }
 });
 
-router.delete("/", function (req, res, next) {
-  res.send("method delete");
+router.delete("/:id", async function (req, res) {
+  try {
+    const id = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid user ID",
+        success: false,
+      });
+    }
+    await Users.findByIdAndDelete(id);
+    return res.status(200).send({
+      message: "delete success",
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "delete fail",
+      success: false,
+    });
+  }
 });
 
 module.exports = router;
