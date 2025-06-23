@@ -92,7 +92,7 @@ router.put("/:id", async function (req, res) {
     if (updateData.amount !== undefined)
       updateData.amount = parseInt(updateData.amount);
     await productModel.updateOne(
-      { _id: mongoose.Types.ObjectId(id) },
+      { _id: id },
       { $set: updateData }
     );
     let product = await productModel.findById(id);
