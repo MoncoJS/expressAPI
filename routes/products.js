@@ -1,138 +1,175 @@
-var express = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
-const productModel = require("../models/product");
+const Product = require("../models/product");
 const upload = require("../middleware/image");
-var router = express.Router();
+const router = express.Router();
 
-/* GET users listing. */
-router.get("/", async function (req, res) {
-  //   res.send('method get');
+// Get all products
+router.get("/", async (req, res) => {
   try {
-    let products = await productModel.find();
-    return res.status(200).send({
-      data: products,
-      message: "Products retrieved successfully",
+    const products = await Product.find();
+    return res.status(200).json({
       success: true,
+      message: "Products retrieved successfully",
+      data: products
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Error retrieving products",
+    console.error("Error fetching products:", error);
+    return res.status(500).json({
       success: false,
+      message: "Failed to retrieve products"
     });
   }
 });
 
-router.get("/:id", async function (req, res) {
+// Get product by ID
+router.get("/:id", async (req, res) => {
   try {
-    let id = req.params.id;
+    const { id } = req.params;
+    
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).send({
-        message: "Invalid product ID",
+      return res.status(400).json({
         success: false,
-        error: "Invalid ID format",
+        message: "Invalid product ID"
       });
     }
-    let product = await productModel.findById(id);
-    return res.status(200).send({
-      data: product,
-      message: "Product retrieved successfully",
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    return res.status(200).json({
       success: true,
+      message: "Product retrieved successfully",
+      data: product
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Error retrieving product",
+    console.error("Error fetching product:", error);
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      message: "Failed to retrieve product"
     });
   }
 });
 
-router.post("/", upload.single("image"), async function (req, res) {
-  let nameImage = "";
-  if (req.file) {
-    nameImage = req.file.filename;
-  }
-
+// Create new product
+router.post("/", upload.single("image"), async (req, res) => {
   try {
     const { product_name, price, amount, description } = req.body;
-    let newProduct = new productModel({
-      product_name: product_name,
-      price: parseFloat(price),
-      amount: parseInt(amount),
-      img: nameImage,
-      description: description,
-    });
-    let savedProduct = await newProduct.save();
-    return res.status(201).send({
-      data: savedProduct,
-      message: "Product created successfully",
-      success: true,
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Error creating product",
-      success: false,
-    });
-  }
-});
-router.put("/:id", async function (req, res) {
-  try {
-    const id = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).send({
-        message: "Invalid product ID",
+    const image = req.file ? req.file.filename : "";
+
+    // Validate required fields
+    if (!product_name || !price || !amount) {
+      return res.status(400).json({
         success: false,
-        error: "Invalid ID format",
+        message: "Product name, price and amount are required"
       });
     }
-    // แปลง price, amount เป็นตัวเลขถ้ามี
-    const updateData = { ...req.body };
-    if (updateData.price !== undefined)
-      updateData.price = parseFloat(updateData.price);
-    if (updateData.amount !== undefined)
-      updateData.amount = parseInt(updateData.amount);
-    await productModel.updateOne(
-      { _id: id },
-      { $set: updateData }
-    );
-    let product = await productModel.findById(id);
-    return res.status(200).send({
-      data: product,
-      message: "Product updated successfully",
+
+    const newProduct = new Product({
+      product_name,
+      price: parseFloat(price),
+      amount: parseInt(amount),
+      img: image,
+      description: description || ""
+    });
+
+    const savedProduct = await newProduct.save();
+    return res.status(201).json({
       success: true,
+      message: "Product created successfully",
+      data: savedProduct
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Error updating product",
+    console.error("Error creating product:", error);
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      message: "Failed to create product"
     });
   }
 });
 
-router.delete("/:id", async function (req, res) {
-  //   res.send("method delete");
+// Update product
+router.put("/:id", async (req, res) => {
   try {
-    let id = req.params.id;
+    const { id } = req.params;
+    
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).send({
-        message: "Invalid product ID",
+      return res.status(400).json({
         success: false,
-        error: "Invalid ID format",
+        message: "Invalid product ID"
       });
     }
-    await productModel.deleteOne({ _id: new mongoose.Types.ObjectId(id) });
-    let products = await productModel.find();
-    return res.status(200).send({
-      data: products,
-      message: "Product deleted successfully",
+
+    const updateData = { ...req.body };
+    
+    // Convert numeric fields
+    if (updateData.price) updateData.price = parseFloat(updateData.price);
+    if (updateData.amount) updateData.amount = parseInt(updateData.amount);
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id, 
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    return res.status(200).json({
       success: true,
+      message: "Product updated successfully",
+      data: updatedProduct
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Error deleting product",
+    console.error("Error updating product:", error);
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      message: "Failed to update product"
+    });
+  }
+});
+
+// Delete product
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID"
+      });
+    }
+
+    const result = await Product.deleteOne({ _id: id });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    const products = await Product.find();
+    return res.status(200).json({
+      success: true,
+      message: "Product deleted successfully",
+      data: products
+    });
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete product"
     });
   }
 });

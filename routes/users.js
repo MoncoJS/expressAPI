@@ -1,7 +1,7 @@
 var express = require("express");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
-const Users = require("../models/์user.js");
+const Users = require("../models/user.js");
 var router = express.Router();
 
 /* GET users listing. */

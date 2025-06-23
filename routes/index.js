@@ -1,50 +1,78 @@
-var express = require("express");
+const express = require("express");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const Users = require("../models/์user.js");
-var router = express.Router();
+const User = require("../models/user.js");
+const router = express.Router();
 
-/* GET home page. */
-router.get("/", function (req, res, next) {
+// Home page
+router.get("/", (req, res) => {
   res.render("index", { title: "Express" });
 });
 
-router.post("/login", async function (req, res, next) {
+// User login
+router.post("/login", async (req, res) => {
   try {
-    let { password, username } = req.body;
-    let user = await Users.findOne({
-      username: username,
-    });
+    const { username, password } = req.body;
+    
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Username and password are required" 
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ username });
     if (!user) {
-      return res.status(500).send({
-        message: "login fail",
+      return res.status(401).json({ 
         success: false,
+        message: "Invalid credentials" 
       });
     }
 
-    const checkPassword = await bcrypt.compare(password, user.password);
-    if (!checkPassword) {
-      return res.status(500).send({
-        message: "login fail",
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
         success: false,
+        message: "Invalid credentials" 
       });
     }
 
-    const { _id, firstName, lastName, email } = user;
+    // Generate token
     const token = jwt.sign(
-      { _id, firstName, lastName, email },
-      process.env.JWT_KEY
+      { 
+        _id: user._id, 
+        firstName: user.firstName, 
+        lastName: user.lastName, 
+        email: user.email 
+      },
+      process.env.JWT_KEY,
+      { expiresIn: '1h' }
     );
-    return res.status(201).send({
-      data: { _id, firstName, lastName, email, token },
-      message: "login success",
+
+    // Prepare response data
+    const userData = {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      token
+    };
+
+    return res.status(200).json({
       success: true,
+      message: "Login successful",
+      data: userData
     });
+
   } catch (error) {
-    return res.status(500).send({
-      message: "login fail",
+    console.error("Login error:", error);
+    return res.status(500).json({ 
       success: false,
+      message: "Internal server error" 
     });
   }
 });
