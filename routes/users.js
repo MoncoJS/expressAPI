@@ -143,6 +143,36 @@ router.put("/:id", verifyToken, async function (req, res) {
       });
     }
 
+    // Find the user first to compare current username/email
+    const currentUser = await Users.findById(id);
+    if (!currentUser) {
+      return res.status(404).send({
+        message: "ไม่พบผู้ใช้",
+        success: false,
+      });
+    }
+
+    // Check for duplicate username or email if they are being updated
+    if (req.body.username && req.body.username !== currentUser.username) {
+      const existingUserWithUsername = await Users.findOne({ username: req.body.username });
+      if (existingUserWithUsername) {
+        return res.status(400).send({
+          message: "ชื่อผู้ใช้นี้ถูกใช้ไปแล้ว",
+          success: false,
+        });
+      }
+    }
+
+    if (req.body.email && req.body.email !== currentUser.email) {
+      const existingUserWithEmail = await Users.findOne({ email: req.body.email });
+      if (existingUserWithEmail) {
+        return res.status(400).send({
+          message: "อีเมลนี้ถูกใช้ไปแล้ว",
+          success: false,
+        });
+      }
+    }
+
     if (req.body.password) {
       req.body.password = await bcrypt.hash(req.body.password, 10);
     }

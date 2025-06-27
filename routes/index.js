@@ -25,6 +25,7 @@ router.post("/login", async (req, res) => {
 
     // Find user
     const user = await User.findOne({ username });
+    console.log("User object from DB:", user); // Add this line
     if (!user) {
       return res.status(401).json({ 
         success: false,
@@ -47,7 +48,8 @@ router.post("/login", async (req, res) => {
         _id: user._id, 
         firstName: user.firstName, 
         lastName: user.lastName, 
-        email: user.email 
+        email: user.email,
+        role: user.role // Add user role to token payload
       },
       process.env.JWT_KEY,
     );

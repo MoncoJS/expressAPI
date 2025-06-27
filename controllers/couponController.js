@@ -1,5 +1,14 @@
 const Coupon = require('../models/coupon');
 
+function generateRandomCode(length = 8) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
 // Create a new coupon (Admin only)
 exports.createCoupon = async (req, res) => {
   try {
@@ -8,6 +17,8 @@ exports.createCoupon = async (req, res) => {
 
     if (!code) {
       code = generateRandomCode();
+    } else {
+      code = code.toUpperCase(); // Ensure code is always uppercase
     }
 
     const newCoupon = new Coupon({
