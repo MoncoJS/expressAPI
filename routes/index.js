@@ -50,7 +50,6 @@ router.post("/login", async (req, res) => {
         email: user.email 
       },
       process.env.JWT_KEY,
-      { expiresIn: '1h' }
     );
 
     // Prepare response data

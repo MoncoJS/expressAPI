@@ -4,14 +4,25 @@ const Product = require("../models/product");
 const upload = require("../middleware/image");
 const router = express.Router();
 
+function mapImageUrl(req, prod) {
+  if (!prod) return prod;
+  const obj = prod.toObject ? prod.toObject() : prod;
+  if (obj.img && !obj.img.startsWith('http')) {
+    obj.img = `${req.protocol}://${req.get('host')}/uploads/${obj.img}`;
+  }
+  return obj;
+}
+
 // Get all products
 router.get("/", async (req, res) => {
   try {
     const products = await Product.find();
+    // Map image URL
+    const mapped = products.map(prod => mapImageUrl(req, prod));
     return res.status(200).json({
       success: true,
       message: "Products retrieved successfully",
-      data: products
+      data: mapped
     });
   } catch (error) {
     console.error("Error fetching products:", error);
@@ -45,7 +56,7 @@ router.get("/:id", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Product retrieved successfully",
-      data: product
+      data: mapImageUrl(req, product)
     });
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -82,7 +93,7 @@ router.post("/", upload.single("image"), async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Product created successfully",
-      data: savedProduct
+      data: mapImageUrl(req, savedProduct)
     });
   } catch (error) {
     console.error("Error creating product:", error);
@@ -94,10 +105,9 @@ router.post("/", upload.single("image"), async (req, res) => {
 });
 
 // Update product
-router.put("/:id", async (req, res) => {
+router.put("/:id", upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -106,7 +116,12 @@ router.put("/:id", async (req, res) => {
     }
 
     const updateData = { ...req.body };
-    
+
+    // If uploading new image, replace img field
+    if (req.file) {
+      updateData.img = req.file.filename;
+    }
+
     // Convert numeric fields
     if (updateData.price) updateData.price = parseFloat(updateData.price);
     if (updateData.amount) updateData.amount = parseInt(updateData.amount);
@@ -127,7 +142,7 @@ router.put("/:id", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Product updated successfully",
-      data: updatedProduct
+      data: mapImageUrl(req, updatedProduct)
     });
   } catch (error) {
     console.error("Error updating product:", error);
@@ -160,10 +175,11 @@ router.delete("/:id", async (req, res) => {
     }
 
     const products = await Product.find();
+    const mapped = products.map(prod => mapImageUrl(req, prod));
     return res.status(200).json({
       success: true,
       message: "Product deleted successfully",
-      data: products
+      data: mapped
     });
   } catch (error) {
     console.error("Error deleting product:", error);

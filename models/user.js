@@ -18,6 +18,11 @@ const users = new mongoose.Schema({
   },
   gender: {
     type: String,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
   }
 });
 module.exports = mongoose.model("users", users);

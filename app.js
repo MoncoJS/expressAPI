@@ -8,10 +8,11 @@ var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 var productsRouter = require("./routes/products");
 var orderRouter = require("./routes/order");
+var couponRouter = require("./routes/coupon");
 
 var app = express();
 
-var cors = require("cors");
+const cors = require("cors");
 const verifyToken = require("./middleware/jwt_decode");
 const mongoose = require("mongoose");
 const { DB_HOST, DB_PORT, DB_NAME } = process.env;
@@ -39,9 +40,10 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
-app.use("/users", verifyToken, usersRouter);
+app.use("/users", usersRouter);
 app.use("/products", productsRouter);
 app.use("/orders", orderRouter);
+app.use("/coupons", couponRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
