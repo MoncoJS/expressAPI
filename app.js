@@ -9,11 +9,11 @@ var usersRouter = require("./routes/users");
 var productsRouter = require("./routes/products");
 var orderRouter = require("./routes/order");
 var couponRouter = require("./routes/coupon");
+var authRouter = require("./routes/auth"); // New auth router
 
 var app = express();
 
 const cors = require("cors");
-const verifyToken = require("./middleware/jwt_decode");
 const mongoose = require("mongoose");
 const { DB_HOST, DB_PORT, DB_NAME } = process.env;
 mongoose
@@ -40,6 +40,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
+app.use("/auth", authRouter); // Use auth router for /auth
 app.use("/users", usersRouter);
 app.use("/products", productsRouter);
 app.use("/orders", orderRouter);
