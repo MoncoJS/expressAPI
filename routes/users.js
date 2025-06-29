@@ -162,4 +162,68 @@ router.delete("/:id", verifyToken, async function (req, res) {
   }
 });
 
+// PUT /users/:id/role - เปลี่ยนสิทธิ์ผู้ใช้ (ต้อง verifyToken และเป็น admin)
+router.put("/:id/role", verifyToken, async function (req, res) {
+  try {
+    const id = req.params.id;
+    const { role } = req.body;
+    
+    // Check if current user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).send({
+        message: "ไม่มีสิทธิ์ในการเปลี่ยนสิทธิ์ผู้ใช้",
+        success: false,
+      });
+    }
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid user ID",
+        success: false,
+      });
+    }
+    
+    // Validate role
+    if (!role || !['user', 'admin'].includes(role)) {
+      return res.status(400).send({
+        message: "สิทธิ์ไม่ถูกต้อง ต้องเป็น 'user' หรือ 'admin'",
+        success: false,
+      });
+    }
+    
+    // Prevent admin from changing their own role
+    if (req.user._id === id) {
+      return res.status(400).send({
+        message: "ไม่สามารถเปลี่ยนสิทธิ์ของตนเองได้",
+        success: false,
+      });
+    }
+
+    const updatedUser = await Users.findByIdAndUpdate(
+      id, 
+      { role }, 
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).send({
+        message: "ไม่พบผู้ใช้",
+        success: false,
+      });
+    }
+
+    return res.status(200).send({
+      data: updatedUser,
+      message: "เปลี่ยนสิทธิ์สำเร็จ",
+      success: true,
+    });
+  } catch (error) {
+    console.error("PUT users role error:", error);
+    return res.status(500).send({
+      message: "เปลี่ยนสิทธิ์ไม่สำเร็จ",
+      success: false,
+    });
+  }
+});
+
 module.exports = router;

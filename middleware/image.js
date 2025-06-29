@@ -1,7 +1,6 @@
 const multer = require("multer");
 const fs = require("fs");
 
-// Create uploads directory if it doesn't exist
 const dir = "./public/uploads";
 if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
@@ -18,4 +17,5 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+module.exports = upload;
 module.exports = upload;

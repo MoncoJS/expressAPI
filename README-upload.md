@@ -88,10 +88,10 @@ curl -X POST http://localhost:3000/products \
 
 รูปที่อัพโหลดจะถูกเก็บในโฟลเดอร์ `./public/images` และสามารถเข้าถึงได้ผ่าน URL:
 ```
-http://localhost:3000/images/[ชื่อไฟล์]
+http://localhost:3000/uploads/[ชื่อไฟล์]
 ```
 
-ตัวอย่าง: `http://localhost:3000/images/1703123456789_image.jpg`
+ตัวอย่าง: `http://localhost:3000/uploads/1703123456789_image.jpg`
 
 ### 5. **ข้อกำหนดไฟล์รูป**
 
@@ -135,4 +135,4 @@ const fileFilter = (req, file, cb) => {
 
 ---
 
-**หมายเหตุ:** ตรวจสอบให้แน่ใจว่าเซิร์ฟเวอร์ Express กำลังทำงานก่อนทดสอบการอัพโหลดรูป 
+**หมายเหตุ:** ตรวจสอบให้แน่ใจว่าเซิร์ฟเวอร์ Express กำลังทำงานก่อนทดสอบการอัพโหลดรูป

@@ -1,24 +1,16 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const Product = require("../models/product");
 const upload = require("../middleware/image");
+const verifyToken = require("../middleware/jwt_decode");
+const admin = require("../middleware/admin");
 const router = express.Router();
-
-function mapImageUrl(req, prod) {
-  if (!prod) return prod;
-  const obj = prod.toObject ? prod.toObject() : prod;
-  if (obj.img && !obj.img.startsWith('http')) {
-    obj.img = `${req.protocol}://${req.get('host')}/uploads/${obj.img}`;
-  }
-  return obj;
-}
 
 // Get all products
 router.get("/", async (req, res) => {
   try {
     const products = await Product.find();
     // Map image URL
-    const mapped = products.map(prod => mapImageUrl(req, prod));
+    const mapped = products.map(p => ({ ...p.toObject(), img: p.img ? `/uploads/${p.img}` : '' }));
     return res.status(200).json({
       success: true,
       message: "Products retrieved successfully",
@@ -37,13 +29,6 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product ID"
-      });
-    }
 
     const product = await Product.findById(id);
     if (!product) {
@@ -56,7 +41,7 @@ router.get("/:id", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Product retrieved successfully",
-      data: mapImageUrl(req, product)
+      data: { ...product.toObject(), img: product.img ? `/uploads/${product.img}` : '' }
     });
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -68,10 +53,10 @@ router.get("/:id", async (req, res) => {
 });
 
 // Create new product
-router.post("/", upload.single("image"), async (req, res) => {
+router.post("/", verifyToken, admin, upload.single("image"), async (req, res) => {
   try {
     const { product_name, price, amount, description } = req.body;
-    const image = req.file ? req.file.filename : "";
+    const img = req.file ? req.file.filename : "";
 
     // Validate required fields
     if (!product_name || !price || !amount) {
@@ -81,19 +66,12 @@ router.post("/", upload.single("image"), async (req, res) => {
       });
     }
 
-    const newProduct = new Product({
-      product_name,
-      price: parseFloat(price),
-      amount: parseInt(amount),
-      img: image,
-      description: description || ""
-    });
-
-    const savedProduct = await newProduct.save();
+    const product = new Product({ product_name, price, amount, description, img });
+    await product.save();
     return res.status(201).json({
       success: true,
       message: "Product created successfully",
-      data: mapImageUrl(req, savedProduct)
+      data: { ...product.toObject(), img: img ? `/uploads/${img}` : '' }
     });
   } catch (error) {
     console.error("Error creating product:", error);
@@ -105,34 +83,16 @@ router.post("/", upload.single("image"), async (req, res) => {
 });
 
 // Update product
-router.put("/:id", upload.single("image"), async (req, res) => {
+router.put("/:id", verifyToken, admin, upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product ID"
-      });
-    }
 
-    const updateData = { ...req.body };
-
+    const update = { ...req.body };
     // If uploading new image, replace img field
-    if (req.file) {
-      updateData.img = req.file.filename;
-    }
+    if (req.file) update.img = req.file.filename;
 
-    // Convert numeric fields
-    if (updateData.price) updateData.price = parseFloat(updateData.price);
-    if (updateData.amount) updateData.amount = parseInt(updateData.amount);
-
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id, 
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!updatedProduct) {
+    const product = await Product.findByIdAndUpdate(id, update, { new: true });
+    if (!product) {
       return res.status(404).json({
         success: false,
         message: "Product not found"
@@ -142,7 +102,7 @@ router.put("/:id", upload.single("image"), async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Product updated successfully",
-      data: mapImageUrl(req, updatedProduct)
+      data: { ...product.toObject(), img: product.img ? `/uploads/${product.img}` : '' }
     });
   } catch (error) {
     console.error("Error updating product:", error);
@@ -154,38 +114,66 @@ router.put("/:id", upload.single("image"), async (req, res) => {
 });
 
 // Delete product
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, admin, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product ID"
-      });
-    }
 
-    const result = await Product.deleteOne({ _id: id });
-    
-    if (result.deletedCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found"
-      });
-    }
-
-    const products = await Product.find();
-    const mapped = products.map(prod => mapImageUrl(req, prod));
-    return res.status(200).json({
-      success: true,
-      message: "Product deleted successfully",
-      data: mapped
-    });
+    await Product.findByIdAndDelete(id);
+    return res.json({ success: true });
   } catch (error) {
     console.error("Error deleting product:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to delete product"
+    });
+  }
+});
+
+// Get product image with proper CORS headers
+router.get("/image/:filename", (req, res) => {
+  try {
+    const { filename } = req.params;
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Decode the filename
+    const decodedFilename = decodeURIComponent(filename);
+    const imagePath = path.join(__dirname, '../public/uploads', decodedFilename);
+    
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({
+        success: false,
+        message: "Image not found"
+      });
+    }
+    
+    // Set CORS headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    
+    // Set content type based on file extension
+    const ext = path.extname(decodedFilename).toLowerCase();
+    const contentTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp'
+    };
+    
+    const contentType = contentTypes[ext] || 'image/jpeg';
+    res.contentType(contentType);
+    
+    // Send the file
+    res.sendFile(imagePath);
+  } catch (error) {
+    console.error("Error serving image:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to serve image"
     });
   }
 });

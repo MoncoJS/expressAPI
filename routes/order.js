@@ -6,6 +6,9 @@ const orderController = require("../controllers/orderController");
 // Get all orders for logged-in user
 router.get("/", verifyToken, orderController.getAllOrders);
 
+// Get all completed orders for logged-in user
+router.get("/completed", verifyToken, orderController.getCompletedOrders);
+
 // Get order by ID
 router.get("/:id", verifyToken, orderController.getOrderById);
 

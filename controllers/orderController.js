@@ -43,8 +43,19 @@ exports.getAllOrders = async (req, res) => {
     // Filter by userId and status 'pending' for cart
     const filter = { userId: req.user._id, status: 'pending' }; 
     const orders = await Order.find(filter).populate("items.product");
+    
+    console.log('Orders found:', orders.length); // Debug log
+    if (orders.length > 0) {
+      console.log('First order:', orders[0]); // Debug log
+      console.log('First order items:', orders[0].items); // Debug log
+      if (orders[0].items.length > 0) {
+        console.log('First item product:', orders[0].items[0].product); // Debug log
+      }
+    }
+    
     // Map image url for each order
     const mapped = orders.map(order => mapOrderProductImageUrl(req, order));
+    
     return res.status(200).json({
       success: true,
       message: "Orders retrieved successfully",
@@ -52,9 +63,33 @@ exports.getAllOrders = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
+    console.error("Error stack:", error.stack); // More detailed error info
     return res.status(500).json({
       success: false,
-      message: "Failed to retrieve orders"
+      message: "Failed to retrieve orders",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get all completed orders for logged-in user
+exports.getCompletedOrders = async (req, res) => {
+  try {
+    // Filter by userId and status 'completed'
+    const filter = { userId: req.user._id, status: 'completed' };
+    const orders = await Order.find(filter).populate("items.product");
+    // Map image url for each order
+    const mapped = orders.map(order => mapOrderProductImageUrl(req, order));
+    return res.status(200).json({
+      success: true,
+      message: "Completed orders retrieved successfully",
+      data: mapped
+    });
+  } catch (error) {
+    console.error("Error fetching completed orders:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve completed orders"
     });
   }
 };
