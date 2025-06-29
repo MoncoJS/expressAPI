@@ -129,10 +129,18 @@ router.put("/:id", verifyToken, async function (req, res) {
   }
 });
 
-// DELETE /users/:id - ลบผู้ใช้ (ต้อง verifyToken)
+// DELETE /users/:id - ลบผู้ใช้ (ต้อง verifyToken และเป็น admin)
 router.delete("/:id", verifyToken, async function (req, res) {
   try {
     const id = req.params.id;
+    
+    // Check if current user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).send({
+        message: "ไม่มีสิทธิ์ในการลบผู้ใช้",
+        success: false,
+      });
+    }
     
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).send({
@@ -141,23 +149,41 @@ router.delete("/:id", verifyToken, async function (req, res) {
       });
     }
 
-    const deletedUser = await Users.findByIdAndDelete(id);
-
-    if (!deletedUser) {
-      return res.status(404).send({
-        message: "ไม่พบผู้ใช้",
+    // Prevent admin from deleting themselves
+    if (req.user._id === id) {
+      return res.status(400).send({
+        message: "ไม่สามารถลบบัญชีของตนเองได้",
         success: false,
       });
     }
 
+    // Check if user exists
+    const userToDelete = await Users.findById(id);
+    if (!userToDelete) {
+      return res.status(404).send({
+        message: "ไม่พบผู้ใช้ที่ต้องการลบ",
+        success: false,
+      });
+    }
+
+    // Delete the user
+    const deletedUser = await Users.findByIdAndDelete(id);
+
     return res.status(200).send({
-      message: "ลบสำเร็จ",
+      message: `ลบผู้ใช้ ${userToDelete.username} สำเร็จ`,
       success: true,
+      data: {
+        deletedUser: {
+          _id: deletedUser._id,
+          username: deletedUser.username,
+          email: deletedUser.email
+        }
+      }
     });
   } catch (error) {
     console.error("DELETE users error:", error);
     return res.status(500).send({
-      message: "ลบไม่สำเร็จ",
+      message: "เกิดข้อผิดพลาดในการลบผู้ใช้",
       success: false,
     });
   }
