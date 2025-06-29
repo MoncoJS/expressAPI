@@ -1,5 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose"); // Add this line back
+const bcrypt = require("bcrypt");
 const Users = require("../models/user.js");
 const verifyToken = require("../middleware/jwt_decode");
 const router = express.Router();
@@ -221,6 +222,82 @@ router.put("/:id/role", verifyToken, async function (req, res) {
     console.error("PUT users role error:", error);
     return res.status(500).send({
       message: "เปลี่ยนสิทธิ์ไม่สำเร็จ",
+      success: false,
+    });
+  }
+});
+
+// PUT /users/:id/password - เปลี่ยนรหัสผ่าน (ต้อง verifyToken)
+router.put("/:id/password", verifyToken, async function (req, res) {
+  try {
+    const id = req.params.id;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid user ID",
+        success: false,
+      });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).send({
+        message: "กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่",
+        success: false,
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).send({
+        message: "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร",
+        success: false,
+      });
+    }
+
+    // Find the user with password included
+    const user = await Users.findById(id);
+    if (!user) {
+      return res.status(404).send({
+        message: "ไม่พบผู้ใช้",
+        success: false,
+      });
+    }
+
+    // Check if current password is correct
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).send({
+        message: "รหัสผ่านปัจจุบันไม่ถูกต้อง",
+        success: false,
+      });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    const updatedUser = await Users.findByIdAndUpdate(
+      id, 
+      { password: hashedNewPassword }, 
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).send({
+        message: "ไม่พบผู้ใช้",
+        success: false,
+      });
+    }
+
+    return res.status(200).send({
+      data: updatedUser,
+      message: "เปลี่ยนรหัสผ่านสำเร็จ",
+      success: true,
+    });
+  } catch (error) {
+    console.error("PUT users password error:", error);
+    return res.status(500).send({
+      message: "เปลี่ยนรหัสผ่านไม่สำเร็จ",
       success: false,
     });
   }

@@ -82,6 +82,30 @@ router.post("/", verifyToken, admin, upload.single("image"), async (req, res) =>
   }
 });
 
+// Upload image endpoint
+router.post("/upload", verifyToken, admin, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "File uploaded successfully",
+      filename: req.file.filename
+    });
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload file"
+    });
+  }
+});
+
 // Update product
 router.put("/:id", verifyToken, admin, upload.single("image"), async (req, res) => {
   try {
