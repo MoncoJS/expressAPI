@@ -55,7 +55,7 @@ router.get("/:id", async (req, res) => {
 // Create new product
 router.post("/", verifyToken, admin, upload.single("image"), async (req, res) => {
   try {
-    const { product_name, price, amount, description } = req.body;
+    const { product_name, price, amount, description, category } = req.body;
     const img = req.file ? req.file.filename : "";
 
     // Validate required fields
@@ -66,7 +66,14 @@ router.post("/", verifyToken, admin, upload.single("image"), async (req, res) =>
       });
     }
 
-    const product = new Product({ product_name, price, amount, description, img });
+    const product = new Product({ 
+      product_name, 
+      price, 
+      amount, 
+      description, 
+      category: category || 'ทั่วไป',
+      img 
+    });
     await product.save();
     return res.status(201).json({
       success: true,
