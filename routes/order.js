@@ -18,6 +18,9 @@ router.post("/", verifyToken, orderController.createOrUpdateOrder);
 // Update cart (order) for current user
 router.put("/", verifyToken, orderController.updateCart);
 
+// Update specific order item quantity
+router.put("/:id", verifyToken, orderController.updateOrderItem);
+
 // Restore product stock (for cart item removal/clear)
 router.post("/restore", verifyToken, orderController.restoreProductStock);
 

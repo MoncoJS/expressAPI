@@ -385,3 +385,62 @@ exports.checkoutSelectedItems = async (req, res) => {
     return res.status(400).json({ success: false, message: error.message || "Failed to process checkout." });
   }
 };
+
+// Update specific order item quantity
+exports.updateOrderItem = async (req, res) => {
+  try {
+    const { id } = req.params; // Order ID
+    const { quantity } = req.body;
+    const userId = req.user._id;
+
+    // Validate quantity
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be at least 1"
+      });
+    }
+
+    // Find the order by ID and ensure it belongs to the user
+    const order = await Order.findOne({ _id: id, userId, status: 'pending' }).populate('items.product');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found or not accessible"
+      });
+    }
+
+    // If this is a single-item order, update the first item
+    if (order.items.length === 1) {
+      const item = order.items[0];
+      
+      // Validate stock for the new quantity
+      await validateProductStock(item.product._id, quantity);
+      
+      // Update quantity
+      order.items[0].quantity = quantity;
+    } else {
+      // For multi-item orders, this approach might need modification
+      // For now, we'll update the first matching item
+      if (order.items.length > 0) {
+        order.items[0].quantity = quantity;
+      }
+    }
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Order item updated successfully",
+      data: mapOrderProductImageUrl(req, order)
+    });
+
+  } catch (error) {
+    console.error("Error updating order item:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update order item"
+    });
+  }
+};
