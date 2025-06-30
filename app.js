@@ -45,6 +45,7 @@ app.use("/users", require("./routes/users"));
 app.use("/products", require("./routes/products"));
 app.use("/orders", require("./routes/order"));
 app.use("/coupons", require("./routes/coupon"));
+app.use("/bills", require("./routes/bills"));
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Not Found" });

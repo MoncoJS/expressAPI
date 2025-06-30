@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Order = require("../models/order");
 const Product = require("../models/product");
 const Coupon = require("../models/coupon"); // Import Coupon model
+const { createBill } = require("./billController"); // Import bill creation function
 
 // Helper function to validate product stock
 async function validateProductStock(productId, quantity) {
@@ -42,7 +43,7 @@ exports.getAllOrders = async (req, res) => {
   try {
     // Filter by userId and status 'pending' for cart
     const filter = { userId: req.user._id, status: 'pending' }; 
-    const orders = await Order.find(filter).populate("items.product");
+    const orders = await Order.find(filter); // Remove populate
     
     console.log('Orders found:', orders.length); // Debug log
     
@@ -89,7 +90,7 @@ exports.getCompletedOrders = async (req, res) => {
   try {
     // Filter by userId and status 'completed'
     const filter = { userId: req.user._id, status: 'completed' };
-    const orders = await Order.find(filter).populate("items.product");
+    const orders = await Order.find(filter); // Remove populate
     // Map image url for each order
     const mapped = orders.map(order => mapOrderProductImageUrl(req, order));
     return res.status(200).json({
@@ -118,7 +119,7 @@ exports.getOrderById = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(id).populate("items.product");
+    const order = await Order.findById(id); // Remove populate
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -404,6 +405,9 @@ exports.checkoutSelectedItems = async (req, res) => {
 
     // Apply coupon if provided
     let appliedCouponId = null;
+    let appliedDiscount = 0;
+    const totalAmountBeforeDiscount = totalAmount;
+    
     if (couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
       if (!coupon || new Date(coupon.expirationDate) < new Date()) {
@@ -412,9 +416,11 @@ exports.checkoutSelectedItems = async (req, res) => {
       appliedCouponId = coupon._id;
 
       if (coupon.discountType === 'percentage') {
-        totalAmount -= (totalAmount * coupon.discountValue) / 100;
+        appliedDiscount = (totalAmount * coupon.discountValue) / 100;
+        totalAmount -= appliedDiscount;
       } else if (coupon.discountType === 'fixed') {
-        totalAmount -= coupon.discountValue;
+        appliedDiscount = coupon.discountValue;
+        totalAmount -= appliedDiscount;
       }
       totalAmount = Math.max(0, totalAmount); // Ensure total doesn't go below zero
     }
@@ -433,6 +439,35 @@ exports.checkoutSelectedItems = async (req, res) => {
       couponApplied: appliedCouponId,
     });
     await completedOrder.save();
+
+    // Create bill record
+    try {
+      const billData = {
+        userId,
+        orderNumber: completedOrder._id.toString(), // Use order ID as order number
+        items: itemsToProcess.map(item => ({
+          product: item.product,
+          productName: item.productName || 'Unknown Product',
+          quantity: item.quantity,
+          price: item.price,
+          subtotal: item.price * item.quantity
+        })),
+        subtotal: totalAmountBeforeDiscount,
+        discount: appliedDiscount,
+        total: totalAmount,
+        couponApplied: appliedCouponId,
+        couponCode: couponCode,
+        status: 'paid',
+        billDate: new Date()
+      };
+      
+      const bill = await createBill(billData);
+      console.log('Bill created successfully:', bill._id);
+    } catch (billError) {
+      console.error('Error creating bill:', billError);
+      console.error('Bill error details:', billError.message);
+      // Don't fail the order if bill creation fails
+    }
 
     // Update the pending order (cart) with remaining items
     currentPendingOrder.items = currentPendingOrder.items.filter(item => item.quantity > 0);
@@ -470,7 +505,7 @@ exports.updateOrderItem = async (req, res) => {
     }
 
     // Find the order by ID and ensure it belongs to the user
-    const order = await Order.findOne({ _id: id, userId, status: 'pending' }).populate('items.product');
+    const order = await Order.findOne({ _id: id, userId, status: 'pending' }); // Remove populate
     
     if (!order) {
       return res.status(404).json({

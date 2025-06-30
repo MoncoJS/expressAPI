@@ -7,4 +7,4 @@ const products = new mongoose.Schema({
   img: String,
   category: { type: String, default: 'ทั่วไป' } // เพิ่มฟิลด์หมวดหมู่สินค้า
 }, { timestamps: true });
-module.exports = mongoose.model("products", products);
+module.exports = mongoose.model("Product", products);
