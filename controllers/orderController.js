@@ -442,16 +442,23 @@ exports.checkoutSelectedItems = async (req, res) => {
 
     // Create bill record
     try {
-      const billData = {
-        userId,
-        orderNumber: completedOrder._id.toString(), // Use order ID as order number
-        items: itemsToProcess.map(item => ({
+      // Fetch product details including image for each item
+      const billItems = await Promise.all(itemsToProcess.map(async (item) => {
+        const product = await Product.findById(item.product);
+        return {
           product: item.product,
           productName: item.productName || 'Unknown Product',
           quantity: item.quantity,
           price: item.price,
-          subtotal: item.price * item.quantity
-        })),
+          subtotal: item.price * item.quantity,
+          img: product ? product.img : null // Add product image
+        };
+      }));
+
+      const billData = {
+        userId,
+        orderNumber: completedOrder._id.toString(), // Use order ID as order number
+        items: billItems,
         subtotal: totalAmountBeforeDiscount,
         discount: appliedDiscount,
         total: totalAmount,

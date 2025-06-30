@@ -17,6 +17,7 @@ const billSchema = new mongoose.Schema({
       required: true
     },
     productName: String,
+    img: String, // Add product image field
     quantity: {
       type: Number,
       required: true,
