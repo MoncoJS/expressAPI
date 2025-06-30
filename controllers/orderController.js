@@ -45,16 +45,28 @@ exports.getAllOrders = async (req, res) => {
     const orders = await Order.find(filter).populate("items.product");
     
     console.log('Orders found:', orders.length); // Debug log
-    if (orders.length > 0) {
-      console.log('First order:', orders[0]); // Debug log
-      console.log('First order items:', orders[0].items); // Debug log
-      if (orders[0].items.length > 0) {
-        console.log('First item product:', orders[0].items[0].product); // Debug log
+    
+    // Clean up orders by removing items with null products
+    const cleanedOrders = orders.map(order => {
+      const validItems = order.items.filter(item => item.product !== null);
+      return {
+        ...order.toObject(),
+        items: validItems
+      };
+    });
+    
+    // Update the database to remove items with null products
+    for (const order of orders) {
+      const validItems = order.items.filter(item => item.product !== null);
+      if (validItems.length !== order.items.length) {
+        console.log(`Cleaning order ${order._id}: removing ${order.items.length - validItems.length} invalid items`);
+        order.items = validItems;
+        await order.save();
       }
     }
     
     // Map image url for each order
-    const mapped = orders.map(order => mapOrderProductImageUrl(req, order));
+    const mapped = cleanedOrders.map(order => mapOrderProductImageUrl(req, order));
     
     return res.status(200).json({
       success: true,
@@ -298,47 +310,95 @@ exports.checkoutSelectedItems = async (req, res) => {
     const { selectedItems, couponCode } = req.body; // selectedItems: [{ _id, quantity, price, product: productId }], couponCode: string
 
     if (!Array.isArray(selectedItems) || selectedItems.length === 0) {
-      return res.status(400).json({ success: false, message: "No items selected for checkout." });
+      return res.status(400).json({ success: false, message: "ไม่มีสินค้าที่เลือกสำหรับการสั่งซื้อ" });
     }
 
     let currentPendingOrder = await Order.findOne({ userId, status: 'pending' });
     if (!currentPendingOrder) {
-      return res.status(404).json({ success: false, message: "No pending order found for this user." });
+      return res.status(404).json({ success: false, message: "ไม่พบคำสั่งซื้อที่รอดำเนินการสำหรับผู้ใช้นี้" });
     }
 
     let totalAmount = 0;
     let itemsToProcess = [];
-    let itemsToKeepInCart = [];
+    let stockErrors = [];
 
-    // Validate stock and separate selected from unselected items
+    // Validate stock and check availability
     for (const selectedItem of selectedItems) {
-      const product = await validateProductStock(selectedItem.product, selectedItem.quantity);
-      // Ensure the selected item is actually in the current pending order
-      const existingCartItemIndex = currentPendingOrder.items.findIndex(item => 
-        item.product.toString() === selectedItem.product.toString() && item.quantity >= selectedItem.quantity
-      );
+      try {
+        const product = await validateProductStock(selectedItem.product, selectedItem.quantity);
+        
+        // Ensure the selected item is actually in the current pending order
+        const existingCartItemIndex = currentPendingOrder.items.findIndex(item => 
+          item.product && item.product.toString() === selectedItem.product.toString()
+        );
 
-      if (existingCartItemIndex === -1) {
-        throw new Error(`Selected item ${selectedItem.product} not found in cart or quantity exceeds cart quantity.`);
+        if (existingCartItemIndex === -1) {
+          stockErrors.push(`สินค้า ${product.product_name} ไม่พบในตะกร้าสินค้า`);
+          continue;
+        }
+
+        const cartItem = currentPendingOrder.items[existingCartItemIndex];
+        if (cartItem.quantity < selectedItem.quantity) {
+          stockErrors.push(`สินค้า ${product.product_name} มีจำนวนในตะกร้าไม่เพียงพอ (มี ${cartItem.quantity} ชิ้น แต่ต้องการ ${selectedItem.quantity} ชิ้น)`);
+          continue;
+        }
+
+        totalAmount += selectedItem.price * selectedItem.quantity;
+        itemsToProcess.push({
+          ...selectedItem,
+          productName: product.product_name
+        });
+
+      } catch (error) {
+        // Extract product name from error message or use product ID
+        const productName = error.message.includes('product ') ? 
+          error.message.split('product ')[1].split('.')[0] : 
+          selectedItem.product;
+        stockErrors.push(`${productName}: ${error.message}`);
       }
+    }
 
+    // If there are stock errors, return them
+    if (stockErrors.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "มีปัญหากับสินค้าบางรายการ",
+        errors: stockErrors,
+        details: stockErrors.join(', ')
+      });
+    }
+
+    // If no valid items to process
+    if (itemsToProcess.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "ไม่มีสินค้าที่สามารถสั่งซื้อได้" 
+      });
+    }
+
+    // Process valid items
+    for (const item of itemsToProcess) {
       // Reduce stock for selected items
+      const product = await Product.findById(item.product);
       const stockField = product.amount !== undefined ? "amount" : "stock";
       await Product.findByIdAndUpdate(
-        selectedItem.product,
-        { $inc: { [stockField]: -selectedItem.quantity } }
+        item.product,
+        { $inc: { [stockField]: -item.quantity } }
       );
 
-      totalAmount += selectedItem.price * selectedItem.quantity;
-      itemsToProcess.push(selectedItem);
+      // Remove or reduce quantity from pending order
+      const existingCartItemIndex = currentPendingOrder.items.findIndex(cartItem => 
+        cartItem.product && cartItem.product.toString() === item.product.toString()
+      );
 
-      // Adjust quantity in pending order or remove if fully selected
-      if (currentPendingOrder.items[existingCartItemIndex].quantity === selectedItem.quantity) {
-        // Item fully selected, remove from pending order
-        currentPendingOrder.items.splice(existingCartItemIndex, 1);
-      } else {
-        // Partial selection, reduce quantity in pending order
-        currentPendingOrder.items[existingCartItemIndex].quantity -= selectedItem.quantity;
+      if (existingCartItemIndex !== -1) {
+        if (currentPendingOrder.items[existingCartItemIndex].quantity === item.quantity) {
+          // Item fully selected, remove from pending order
+          currentPendingOrder.items.splice(existingCartItemIndex, 1);
+        } else {
+          // Partial selection, reduce quantity in pending order
+          currentPendingOrder.items[existingCartItemIndex].quantity -= item.quantity;
+        }
       }
     }
 
@@ -347,7 +407,7 @@ exports.checkoutSelectedItems = async (req, res) => {
     if (couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
       if (!coupon || new Date(coupon.expirationDate) < new Date()) {
-        return res.status(400).json({ success: false, message: "Invalid or expired coupon code." });
+        return res.status(400).json({ success: false, message: "รหัสคูปองไม่ถูกต้องหรือหมดอายุแล้ว" });
       }
       appliedCouponId = coupon._id;
 
@@ -362,7 +422,11 @@ exports.checkoutSelectedItems = async (req, res) => {
     // Create a new completed order (bill)
     const completedOrder = new Order({
       userId,
-      items: itemsToProcess,
+      items: itemsToProcess.map(item => ({
+        product: item.product,
+        quantity: item.quantity,
+        price: item.price
+      })),
       status: 'completed',
       orderDate: new Date(),
       totalAmount: totalAmount,
@@ -371,18 +435,22 @@ exports.checkoutSelectedItems = async (req, res) => {
     await completedOrder.save();
 
     // Update the pending order (cart) with remaining items
-    currentPendingOrder.items = currentPendingOrder.items.filter(item => item.quantity > 0); // Remove items with 0 quantity
+    currentPendingOrder.items = currentPendingOrder.items.filter(item => item.quantity > 0);
     await currentPendingOrder.save();
 
     return res.status(200).json({
       success: true,
-      message: "Checkout successful!",
+      message: "สั่งซื้อสำเร็จ!",
       data: completedOrder,
+      orderNumber: completedOrder._id
     });
 
   } catch (error) {
     console.error("Checkout error:", error);
-    return res.status(400).json({ success: false, message: error.message || "Failed to process checkout." });
+    return res.status(400).json({ 
+      success: false, 
+      message: error.message || "ไม่สามารถดำเนินการสั่งซื้อได้" 
+    });
   }
 };
 
